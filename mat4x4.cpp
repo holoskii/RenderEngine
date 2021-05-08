@@ -1,3 +1,10 @@
+/* Created: 29.04.2021
+ * Author: Makar Ivashko
+ * Description: Class for managing 4x4 transformation matrices.
+ * Functionality: vector and matrix multiplication, creation of
+ * rotation, translation, and projection matrices
+ */
+
 #include "mat4x4.h"
 
 #include <cmath>
@@ -59,19 +66,17 @@ mat4x4 mat4x4::makeTranslation(float x, float y, float z)
 }
 
 mat4x4 mat4x4::cameraTransform(vec4& pos, vec4& target, vec4& up) {
-	// Calculate new forward direction
+	// new forward direction
 	vec4 newForward = target - pos;
 	newForward = newForward.normalize();
 
-	// Calculate new Up direction
-	vec4 a = newForward * up.dot(newForward);
-	vec4 newUp = up - a;
-	newUp = newUp.normalize();
+	// new up direction
+	vec4 newUp = (up - newForward * up.dot(newForward)).normalize();
 
-	// New Right direction is easy, its just cross product
+	// new right direction
 	vec4 newRight = newUp.cross(newForward);
 
-	// Construct Dimensioning and Translation Matrix	
+	// transform matrix
 	mat4x4 matrix;
 	matrix.m[0][0] = newRight.x;	matrix.m[0][1] = newRight.y;	matrix.m[0][2] = newRight.z;	matrix.m[0][3] = 0.0f;
 	matrix.m[1][0] = newUp.x;		matrix.m[1][1] = newUp.y;		matrix.m[1][2] = newUp.z;		matrix.m[1][3] = 0.0f;

@@ -1,9 +1,6 @@
 #include "RenderEngine.h"
 
-int main()
-{
-	// mesh object;
-	// object.loadObjectFile("cube.obj");
+int main() {
 	RenderEngine().run();
 	return 0;
 }

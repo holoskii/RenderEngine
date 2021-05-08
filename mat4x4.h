@@ -1,3 +1,10 @@
+/* Created: 29.04.2021
+ * Author: Makar Ivashko
+ * Description: Class for managing 4x4 transformation matrices.
+ * Functionality: vector and matrix multiplication, creation of
+ * rotation, translation, and projection matrices
+ */
+
 #pragma once
 
 #include "vec4.h"

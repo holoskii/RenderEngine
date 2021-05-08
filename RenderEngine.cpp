@@ -1,41 +1,53 @@
+/* Created: 29.04.2021
+ * Author: Makar Ivashko
+ * Short description: 3d rendering engine,
+ * projects polygons from 3d space into 2d screen
+ */
+
 #include "RenderEngine.h"
 
 #include <iostream>
 #include <algorithm>
 #include <chrono>
 #include <list>
-using namespace std;
 
-RenderEngine::RenderEngine()
-{
+RenderEngine::RenderEngine() {
+	// add minimum antialiasing
 	sf::ContextSettings settings;
 	settings.antialiasingLevel = 2;
 
-	window = new sf::RenderWindow(sf::VideoMode(width, height), "SFML shapes", sf::Style::Default, settings);
+	window.create(sf::VideoMode(windowWidth, windowHeight), "SFML shapes", sf::Style::Default, settings);
 }
 
-void RenderEngine::run()
-{
-	// Load object file
-	if (!object.loadObjectFile("sphere.obj")) {
+void RenderEngine::run() {
+	// load object file
+	if (!objectMesh.loadObjectFile("teapot.obj")) {
 		std::cout << "Error openning file " << std::endl;
 		exit(1);
 	}
 
-	// Projection Matrix
-	matProj = mat4x4::createProjection(90.0f, (float)height / (float)width, 0.1f, 1000.0f);
+	// fill projection matrix
+	matProj = mat4x4::createProjection(90.0f, (float)windowHeight / (float)windowWidth, 0.1f, 1000.0f);
 
+	// frame time measurment
 	auto start_time = std::chrono::high_resolution_clock::now();
 
-	while (window->isOpen()) {
+	while (window.isOpen()) {
 
+		// catch events
 		sf::Event event;
-		while (window->pollEvent(event)) {
+		while (window.pollEvent(event)) {
 			if (event.type == sf::Event::Closed) {
-				window->close();
+				window.close();
+			}
+			else if (event.type == sf::Event::Resized) {
+				float aspectRatio = (float)windowHeight / (float)windowWidth;
+				sf::Vector2u newSize = { event.size.width, (unsigned int)(event.size.width * aspectRatio) };
+				window.setSize(newSize);
 			}
 		}
 
+		// handle movement
 		float moveMult = std::min(1.0f, 0.010f * frameTime);
 		float rotationMult = std::min(0.7f, 0.0007f * frameTime);
 
@@ -47,171 +59,149 @@ void RenderEngine::run()
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
 			vCamera = vCamera - vForward;
 		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
-			fYaw -= rotationMult;
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
-			fYaw += rotationMult;
-		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
 			vCamera.y -= moveMult;
 		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
 			vCamera.y += moveMult;
 		}
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
+			fYaw -= rotationMult;
+		}
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
+			fYaw += rotationMult;
+		}
 
-		window->clear();
+		// clear -> render -> display routine
+		window.clear();
 		render(frameTime);
-		window->display();
+		window.display();
 
+		// frame time measurment
 		auto elapsed = std::chrono::high_resolution_clock::now() - start_time;
 		float renderTime = (std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()) / 1000.0f;
-		window->setTitle(std::string("Frametime: ").append(std::to_string(frameTime)));
+		window.setTitle(std::string("Frametime: ").append(std::to_string(frameTime)));
 
-		int sleepTime = 33 - (int)renderTime;
-		if (sleepTime < 0) sleepTime = 0;
-		sf::sleep(sf::milliseconds(sleepTime));
+		// limit framerate to 30
+		if (maxFrameRate > 0) {
+			int sleepTime = 1000.0f / maxFrameRate - (int)renderTime;
+			if (sleepTime < 0) sleepTime = 0;
+			sf::sleep(sf::milliseconds(sleepTime));
+		}
+		
 
 		auto elapsed_time = std::chrono::high_resolution_clock::now() - start_time;
 		frameTime = (std::chrono::duration_cast<std::chrono::microseconds>(elapsed_time).count()) / 1000.0f;
-
 		start_time = std::chrono::high_resolution_clock::now();
 	}
-
-	// return true;
 }
 
 void RenderEngine::render(float fElapsedTime)
 {
-	// Set up "World Tranmsform" though not updating theta 
-	// makes this a bit redundant
-	mat4x4 matRotZ, matRotX;
-	//fTheta += 1.0f * fElapsedTime; // Uncomment to spin me right round baby right round
-	matRotZ = mat4x4::makeRotationZ(fTheta * 0.5f);
-	matRotX = mat4x4::makeRotationX(fTheta);
+	// create world tranform matrix
+	fTheta += 2.5e-4f * fElapsedTime;
+	mat4x4 matRotY = mat4x4::makeRotationY(fTheta);					// world rotation, better for objectMesh exhibition	
+	mat4x4 matTrans = mat4x4::makeTranslation(0.0f, 0.0f, 5.0f);	// world translation (so camera won't stuck in smaller objects)
+	mat4x4 matWorld = matRotY * matTrans; 
 
-	mat4x4 matTrans = mat4x4::makeTranslation(0.0f, 0.0f, 5.0f);
+	// tranformation matrix for camera
+	vec4 vUp = { 0, 1, 0 };
+	vec4 vTarget = { 0, 0, 1 };
 
-	mat4x4 matWorld;
-	matWorld = matRotZ * matRotX; // Transform by rotation
-	matWorld = matWorld * matTrans; // Transform by translation
-
-	// Create "Point At" Matrix for camera
-	vec4 vUp = { 0,1,0 };
-	vec4 vTarget = { 0,0,1 };
-	mat4x4 matCameraRot = mat4x4::makeRotationY(fYaw);
-	vLookDir = matCameraRot * vTarget;
+	vLookDir = mat4x4::makeRotationY(fYaw) * vTarget;
 	vTarget = vCamera + vLookDir;
 	mat4x4 matCamera = mat4x4::cameraTransform(vCamera, vTarget, vUp);
 
-	// Make view matrix from camera
+	// create view tranformation
 	mat4x4 matView = matCamera.quickInverse();
 
-	// Store triagles for rastering later
-	vector<polygon> vecTrianglesToRaster;
+	// vector containing all polygons transformed polygons
+	std::vector<polygon> vecPolysToRaster;
+	vecPolysToRaster.reserve(objectMesh.polys.size());
 
-	// Draw Triangles
-	for (auto poly : object.tris)
+	// tranform polygons
+	for (auto poly : objectMesh.polys)
 	{
-		polygon triProjected, triTransformed, triViewed;
+		polygon polyProjected, polyTransformed, polyViewed;
 
-		// World Matrix Transform
-		triTransformed.p[0] = matWorld * poly.p[0];
-		triTransformed.p[1] = matWorld * poly.p[1];
-		triTransformed.p[2] = matWorld * poly.p[2];
+		// world transform
+		polyTransformed.p[0] = matWorld * poly.p[0];
+		polyTransformed.p[1] = matWorld * poly.p[1];
+		polyTransformed.p[2] = matWorld * poly.p[2];
 
-		// Calculate polygon Normal
-		vec4 normal, line1, line2;
+		// calculate normal as cross product of 2 polygon sides
+		vec4 vNormal, line1, line2;
+		line1 = polyTransformed.p[1] - polyTransformed.p[0];
+		line2 = polyTransformed.p[2] - polyTransformed.p[0];
+		vNormal = line1.cross(line2).normalize();
 
-		// Get lines either side of polygon
-		line1 = triTransformed.p[1] - triTransformed.p[0];
-		line2 = triTransformed.p[2] - triTransformed.p[0];
+		// get camera rey to calculate illumination
+		vec4 vCameraRay = polyTransformed.p[0] - vCamera;
 
-		// Take cross product of lines to get normal to polygon surface
-		normal = line1.cross(line2);
-
-		// You normally need to normalise a normal!
-		normal = normal.normalize();
-
-		// Get Ray from polygon to camera
-		vec4 vCameraRay = triTransformed.p[0] - vCamera;
-
-		// If ray is aligned with normal, then polygon is visible
-		if (normal.dot(vCameraRay) < 0.0f)
+		// if correct polygon size is visible
+		if (vNormal.dot(vCameraRay) < 0.0f)
 		{
-			// Illumination
-			vec4 light_direction = { 0.0f, 1.0f, -1.0f };
-			light_direction = light_direction.normalize();
+			// illuminate
+			vec4 light_direction = vec4(0.0f, 1.0f, -1.0f).normalize();
 
-			// How "aligned" are light direction and polygon surface normal?
-			float dp = max(0.1f, light_direction.dot(normal));
-			uint8_t colorInt = (uint8_t)(dp * 255.0f);
-			// triViewed.color = colorInt << 24 + colorInt << 16 + colorInt << 8;
+			// calculate illumination by angle between normal and light direction
+			// color is shade of gray, so keep in from 0 to 255
+			unsigned char colorInt = std::max(0.1f, light_direction.dot(vNormal)) * 255.0f;
+			polyTransformed.color = (colorInt << 24) + (colorInt << 16) + (colorInt << 8);
 
-			// Choose console colours as required (much easier with RGB)
-			// CHAR_INFO c = GetColour(dp);
-			// triTransformed.color = 0x777777FF;
-			// triTransformed.sym = c.Char.UnicodeChar;
-			triTransformed.color = (colorInt << 24) + (colorInt << 16) + (colorInt << 8);
+			// tranform from world into view
+			polyViewed.p[0] = matView * polyTransformed.p[0];
+			polyViewed.p[1] = matView * polyTransformed.p[1];
+			polyViewed.p[2] = matView * polyTransformed.p[2];
+			polyViewed.color = polyTransformed.color;
 
-
-			// Convert World Space --> View Space
-			triViewed.p[0] = matView * triTransformed.p[0];
-			triViewed.p[1] = matView * triTransformed.p[1];
-			triViewed.p[2] = matView * triTransformed.p[2];
-			triViewed.color = triTransformed.color;
-
-			// Clip Viewed Triangle against near plane, this could form two additional
-			// additional triangles. 
-			int nClippedTriangles = 0;
+			// polygon clipping agains camera plane
+			int nClippedPolygons = 0;
 			polygon clipped[2];
-			nClippedTriangles = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, triViewed, clipped[0], clipped[1]);
+			nClippedPolygons = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, polyViewed, clipped[0], clipped[1]);
 
-			// We may end up with multiple triangles form the clip, so project as
-			// required
-			for (int n = 0; n < nClippedTriangles; n++)
+			// project results of clipping
+			for (int n = 0; n < nClippedPolygons; n++)
 			{
-				// Project triangles from 3D --> 2D
-				triProjected.p[0] = matProj * clipped[n].p[0];
-				triProjected.p[1] = matProj * clipped[n].p[1];
-				triProjected.p[2] = matProj * clipped[n].p[2];
-				triProjected.color = clipped[n].color;
+				// from view to screen (3D -> 2D)
+				polyProjected.p[0] = matProj * clipped[n].p[0];
+				polyProjected.p[1] = matProj * clipped[n].p[1];
+				polyProjected.p[2] = matProj * clipped[n].p[2];
+				polyProjected.color = clipped[n].color;
 
-				// Scale into view, we moved the normalising into cartesian space
-				// out of the matrix.vector function from the previous videos, so
-				// do this manually
-				triProjected.p[0] = triProjected.p[0] / triProjected.p[0].w;
-				triProjected.p[1] = triProjected.p[1] / triProjected.p[1].w;
-				triProjected.p[2] = triProjected.p[2] / triProjected.p[2].w;
+				// scaled them into view
+				polyProjected.p[0] = polyProjected.p[0] / polyProjected.p[0].w;
+				polyProjected.p[1] = polyProjected.p[1] / polyProjected.p[1].w;
+				polyProjected.p[2] = polyProjected.p[2] / polyProjected.p[2].w;
 
-				// X/Y are inverted so put them back
-				triProjected.p[0].x *= -1.0f;
-				triProjected.p[1].x *= -1.0f;
-				triProjected.p[2].x *= -1.0f;
-				triProjected.p[0].y *= -1.0f;
-				triProjected.p[1].y *= -1.0f;
-				triProjected.p[2].y *= -1.0f;
+				// invert x and y back
+				polyProjected.p[0].x *= -1.0f;
+				polyProjected.p[1].x *= -1.0f;
+				polyProjected.p[2].x *= -1.0f;
+				polyProjected.p[0].y *= -1.0f;
+				polyProjected.p[1].y *= -1.0f;
+				polyProjected.p[2].y *= -1.0f;
 
-				// Offset verts into visible normalised space
+				// offset polygon into visible space
 				vec4 vOffsetView = { 1, 1, 0 };
-				triProjected.p[0] = triProjected.p[0] + vOffsetView;
-				triProjected.p[1] = triProjected.p[1] + vOffsetView;
-				triProjected.p[2] = triProjected.p[2] + vOffsetView;
-				triProjected.p[0].x *= 0.5f * (float)width;
-				triProjected.p[0].y *= 0.5f * (float)height;
-				triProjected.p[1].x *= 0.5f * (float)width;
-				triProjected.p[1].y *= 0.5f * (float)height;
-				triProjected.p[2].x *= 0.5f * (float)width;
-				triProjected.p[2].y *= 0.5f * (float)height;
+				polyProjected.p[0] = polyProjected.p[0] + vOffsetView;
+				polyProjected.p[1] = polyProjected.p[1] + vOffsetView;
+				polyProjected.p[2] = polyProjected.p[2] + vOffsetView;
+				polyProjected.p[0].x *= 0.5f * windowWidth;
+				polyProjected.p[0].y *= 0.5f * windowHeight;
+				polyProjected.p[1].x *= 0.5f * windowWidth;
+				polyProjected.p[1].y *= 0.5f * windowHeight;
+				polyProjected.p[2].x *= 0.5f * windowWidth;
+				polyProjected.p[2].y *= 0.5f * windowHeight;
 
-				// Store polygon for sorting
-				vecTrianglesToRaster.push_back(triProjected);
+				// push polygons in vector for further sorting
+				vecPolysToRaster.push_back(polyProjected);
 			}
 		}
 	}
 
-	// Sort triangles from back to front
-	sort(vecTrianglesToRaster.begin(), vecTrianglesToRaster.end(), [](polygon& t1, polygon& t2)
+	// sort back to front
+	sort(vecPolysToRaster.begin(), vecPolysToRaster.end(), [](polygon& t1, polygon& t2)
 		{
 			float z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0f;
 			float z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0f;
@@ -219,59 +209,50 @@ void RenderEngine::render(float fElapsedTime)
 		}
 	);
 
-	// Loop through all transformed, viewed, projected, and sorted triangles
-	for (auto& triToRaster : vecTrianglesToRaster)
+	// polygon clipping against screen borders
+	for (auto& polyToRaster : vecPolysToRaster)
 	{
-		// Clip triangles against all four screen edges, this could yield
-		// a bunch of triangles, so create a queue that we traverse to 
-		//  ensure we only test new triangles generated against planes
+		// clipping agains screen edges may result in a lot of new polygons
+		// so we'll create list to store them
 		polygon clipped[2];
-		list<polygon> listTriangles;
+		std::list<polygon> listPolygons;
 
-		// Add initial polygon
-		listTriangles.push_back(triToRaster);
-		int nNewTriangles = 1;
+		// add original polygon
+		listPolygons.push_back(polyToRaster);
+		int nNewPolys = 1;
 
 		for (int p = 0; p < 4; p++)
 		{
-			int nTrisToAdd = 0;
-			while (nNewTriangles > 0)
+			int nPolysToAdd = 0;
+			while (nNewPolys > 0)
 			{
-				// Take polygon from front of queue
-				polygon test = listTriangles.front();
-				listTriangles.pop_front();
-				nNewTriangles--;
+				// take poly from list
+				polygon test = listPolygons.front();
+				listPolygons.pop_front();
+				nNewPolys--;
 
-				// Clip it against a plane. We only need to test each 
-				// subsequent plane, against subsequent new triangles
-				// as all triangles after a plane clip are guaranteed
-				// to lie on the inside of the plane. I like how this
-				// comment is almost completely and utterly justified
+				// clip against one of four screen edges
 				switch (p)
 				{
-				case 0:	nTrisToAdd = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-				case 1:	nTrisToAdd = polygon::clipAgainstPlane({ 0.0f, (float)height - 1, 0.0f }, { 0.0f, -1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-				case 2:	nTrisToAdd = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
-				case 3:	nTrisToAdd = polygon::clipAgainstPlane({ (float)width - 1, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+				case 0:	nPolysToAdd = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+				case 1:	nPolysToAdd = polygon::clipAgainstPlane({ 0.0f, (float)windowHeight - 1, 0.0f }, { 0.0f, -1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+				case 2:	nPolysToAdd = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+				case 3:	nPolysToAdd = polygon::clipAgainstPlane({ (float)windowWidth - 1, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
 				}
 
-				// Clipping may yield a variable number of triangles, so
-				// add these new ones to the back of the queue for subsequent
-				// clipping against next planes
-				for (int w = 0; w < nTrisToAdd; w++)
-					listTriangles.push_back(clipped[w]);
+				// add newly created polygons
+				for (int w = 0; w < nPolysToAdd; w++) {
+					listPolygons.push_back(clipped[w]);
+				}
 			}
-			nNewTriangles = (int)listTriangles.size();
+			nNewPolys = (int)listPolygons.size();
 		}
 
 
-		// Draw the transformed, viewed, clipped, projected, sorted, clipped triangles
-		for (auto& t : listTriangles)
-		{
-
+		// final draw of polygon
+		for (auto& t : listPolygons) {
 			drawColorTriange(t);
-			// drawBlankTriange(t);
-			// DrawTriangle(t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y, PIXEL_SOLID, FG_BLACK);
+			drawBlankTriange(t);
 		}
 	}
 }
@@ -281,32 +262,27 @@ void RenderEngine::drawBlankTriange(polygon& poly) {
 
 	line[0] = sf::Vertex(sf::Vector2f(poly.p[0].x, poly.p[0].y));
 	line[1] = sf::Vertex(sf::Vector2f(poly.p[1].x, poly.p[1].y));
-	window->draw(line, 2, sf::Lines);
+	window.draw(line, 2, sf::Lines);
 
 	line[0] = sf::Vertex(sf::Vector2f(poly.p[1].x, poly.p[1].y));
 	line[1] = sf::Vertex(sf::Vector2f(poly.p[2].x, poly.p[2].y));
-	window->draw(line, 2, sf::Lines);
+	window.draw(line, 2, sf::Lines);
 
 	line[0] = sf::Vertex(sf::Vector2f(poly.p[2].x, poly.p[2].y));
 	line[1] = sf::Vertex(sf::Vector2f(poly.p[0].x, poly.p[0].y));
-	window->draw(line, 2, sf::Lines);
+	window.draw(line, 2, sf::Lines);
 }
 
-void RenderEngine::drawColorTriange(polygon poly) {
-
-
-	// create an empty shape
+void RenderEngine::drawColorTriange(polygon& poly) {
 	sf::ConvexShape shape;
 
-	// resize it to 5 points
 	shape.setPointCount(3);
 
-	// define the points
 	shape.setPoint(0, sf::Vector2f(poly.p[0].x, poly.p[0].y));
 	shape.setPoint(1, sf::Vector2f(poly.p[1].x, poly.p[1].y));
 	shape.setPoint(2, sf::Vector2f(poly.p[2].x, poly.p[2].y));
 
 	shape.setFillColor(sf::Color(poly.color | 0x000000FF));
 
-	window->draw(shape);
+	window.draw(shape);
 }

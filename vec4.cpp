@@ -1,3 +1,10 @@
+/* Created: 29.04.2021
+ * Author: Makar Ivashko
+ * Description: Class for managing 3d vectors, containing 3-dimensional
+ * coordinates and 1 axillary variable for matrix transformations. Can do
+ * basic vector operations: multiplication, addition, cross, and dot product
+ */
+
 #include "vec4.h"
 
 #include <cmath>

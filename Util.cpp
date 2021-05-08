@@ -1,3 +1,8 @@
+/* Created: 29.04.2021
+ * Author: Makar Ivashko
+ * Short description: polygon and mesh classes, with some utility functions
+ */
+
 #include "Util.h"
 
 #include <fstream>
@@ -5,112 +10,82 @@
 #include <strstream>
 #include <cassert>
 
-int polygon::clipAgainstPlane(vec4 plane_p, vec4 plane_n, polygon& in_tri, polygon& out_tri1, polygon& out_tri2)
-{
-	// Make sure plane normal is indeed normal
+int polygon::clipAgainstPlane(vec4 plane_p, vec4 plane_n, polygon& in_poly, polygon& out_poly1, polygon& out_poly2) {
+	// normilize plane
 	plane_n = plane_n.normalize();
 
-	// Return signed shortest distance from point to plane, plane normal must be normalised
-	auto dist = [&](vec4& p)
-	{
+	// distance from plane to point
+	// If distance is negative point is "outside" the plane
+	auto dist = [&](vec4& p) {
 		vec4 n = p.normalize();
 		return (plane_n.x * p.x + plane_n.y * p.y + plane_n.z * p.z - plane_n.dot(plane_p));
 	};
 
-	// Create two temporary storage arrays to classify points either side of plane
-	// If distance sign is positive, point lies on "inside" of plane
+	// poins on both sizes of plane
 	vec4* inside_points[3];  int nInsidePointCount = 0;
 	vec4* outside_points[3]; int nOutsidePointCount = 0;
 
-	// Get signed distance of each point in polygon to plane
-	float d0 = dist(in_tri.p[0]);
-	float d1 = dist(in_tri.p[1]);
-	float d2 = dist(in_tri.p[2]);
+	// get distance
+	float d0 = dist(in_poly.p[0]);
+	float d1 = dist(in_poly.p[1]);
+	float d2 = dist(in_poly.p[2]);
 
-	if (d0 >= 0) { inside_points[nInsidePointCount++] = &in_tri.p[0]; }
-	else { outside_points[nOutsidePointCount++] = &in_tri.p[0]; }
-	if (d1 >= 0) { inside_points[nInsidePointCount++] = &in_tri.p[1]; }
-	else { outside_points[nOutsidePointCount++] = &in_tri.p[1]; }
-	if (d2 >= 0) { inside_points[nInsidePointCount++] = &in_tri.p[2]; }
-	else { outside_points[nOutsidePointCount++] = &in_tri.p[2]; }
+	if (d0 >= 0)	
+		inside_points[nInsidePointCount++]	= &in_poly.p[0];
+	else
+		outside_points[nOutsidePointCount++]= &in_poly.p[0];
+	if (d1 >= 0)
+		inside_points[nInsidePointCount++] = &in_poly.p[1];
+	else 
+		outside_points[nOutsidePointCount++] = &in_poly.p[1];
+	if (d2 >= 0)
+		inside_points[nInsidePointCount++] = &in_poly.p[2];
+	else
+		outside_points[nOutsidePointCount++] = &in_poly.p[2];
 
-	// Now classify polygon points, and break the input polygon into 
-	// smaller output triangles if required. There are four possible
-	// outcomes...
-
-	if (nInsidePointCount == 0)
-	{
-		// All points lie on the outside of plane, so clip whole polygon
-		// It ceases to exist
-
-		return 0; // No returned triangles are valid
+	// based on points layout output triangle
+	if (nInsidePointCount == 0) {
+		// triangle is out of plane, so it is invalid
+		return 0;
 	}
 
-	if (nInsidePointCount == 3)
-	{
-		// All points lie on the inside of plane, so do nothing
-		// and allow the polygon to simply pass through
-		out_tri1 = in_tri;
-
-		return 1; // Just the one returned original polygon is valid
+	if (nInsidePointCount == 3) {
+		// original polygon is valid
+		out_poly1 = in_poly;
+		return 1;
 	}
 
-	if (nInsidePointCount == 1 && nOutsidePointCount == 2)
-	{
-		// Triangle should be clipped. As two points lie outside
-		// the plane, the polygon simply becomes a smaller polygon
-
-		// Copy appearance info to new polygon
-		out_tri1.color = in_tri.color;
-
-		// The inside point is valid, so keep that...
-		out_tri1.p[0] = *inside_points[0];
-
-		// but the two new points are at the locations where the 
-		// original sides of the polygon (lines) intersect with the plane
-		out_tri1.p[1] = vec4::planeIntersect(plane_p, plane_n, *inside_points[0], *outside_points[0]);
-		out_tri1.p[2] = vec4::planeIntersect(plane_p, plane_n, *inside_points[0], *outside_points[1]);
-
-		return 1; // Return the newly formed single polygon
+	if (nInsidePointCount == 1 && nOutsidePointCount == 2) {
+		// polygon gets clipped into smaller polygon
+		out_poly1.color = in_poly.color;
+		out_poly1.p[0] = *inside_points[0];
+		out_poly1.p[1] = vec4::planeIntersect(plane_p, plane_n, *inside_points[0], *outside_points[0]);
+		out_poly1.p[2] = vec4::planeIntersect(plane_p, plane_n, *inside_points[0], *outside_points[1]);
+		return 1;
 	}
 
-	if (nInsidePointCount == 2 && nOutsidePointCount == 1)
-	{
-		// Triangle should be clipped. As two points lie inside the plane,
-		// the clipped polygon becomes a "quad". Fortunately, we can
-		// represent a quad with two new triangles
+	if (nInsidePointCount == 2 && nOutsidePointCount == 1) {
+		// polygon gets clipped into rectangle => will be 2 output polygons
+		out_poly1.color = in_poly.color;
+		out_poly2.color = in_poly.color;
 
-		// Copy appearance info to new triangles
-		out_tri1.color = in_tri.color;
+		out_poly1.p[0] = *inside_points[0];
+		out_poly1.p[1] = *inside_points[1];
+		out_poly1.p[2] = vec4::planeIntersect(plane_p, plane_n, *inside_points[0], *outside_points[0]);
 
-		out_tri2.color = in_tri.color;
-
-		// The first polygon consists of the two inside points and a new
-		// point determined by the location where one side of the polygon
-		// intersects with the plane
-		out_tri1.p[0] = *inside_points[0];
-		out_tri1.p[1] = *inside_points[1];
-		out_tri1.p[2] = vec4::planeIntersect(plane_p, plane_n, *inside_points[0], *outside_points[0]);
-
-		// The second polygon is composed of one of he inside points, a
-		// new point determined by the intersection of the other side of the 
-		// polygon and the plane, and the newly created point above
-		out_tri2.p[0] = *inside_points[1];
-		out_tri2.p[1] = out_tri1.p[2];
-		out_tri2.p[2] = vec4::planeIntersect(plane_p, plane_n, *inside_points[1], *outside_points[0]);
-
-		return 2; // Return two newly formed triangles which form a quad
+		out_poly2.p[0] = *inside_points[1];
+		out_poly2.p[1] = out_poly1.p[2];
+		out_poly2.p[2] = vec4::planeIntersect(plane_p, plane_n, *inside_points[1], *outside_points[0]);
+		return 2;
 	}
 
 	return 0;
 }
 
 bool mesh::loadObjectFile(std::string inFilename) {
-	
 	std::ifstream f(inFilename);
 	if (!f.is_open()) return false;
 
-	// Local cache of verts
 	std::vector<vec4> verts;
 
 	while (!f.eof())
@@ -119,7 +94,7 @@ bool mesh::loadObjectFile(std::string inFilename) {
 		std::getline(f, line);
 
 		if (line.length() < 3) {
-			return true;
+			continue;
 		}
 
 		std::strstream s;
@@ -156,7 +131,7 @@ bool mesh::loadObjectFile(std::string inFilename) {
 				poly.p[1] = verts[v[1] - 1];
 				poly.p[2] = verts[v[2] - 1];
 
-				this->tris.push_back(poly);
+				this->polys.push_back(poly);
 			}
 			else if (count == 6 || count == 8) {
 				char junkChar;
@@ -175,46 +150,17 @@ bool mesh::loadObjectFile(std::string inFilename) {
 				poly.p[1] = verts[v[1] - 1];
 				poly.p[2] = verts[v[2] - 1];
 
-				this->tris.push_back(poly);
+				this->polys.push_back(poly);
 			} 
 			else {
 				std::cout << "Unknown obj file" << std::endl;
 				return false;
 			}
 		}
+		else {
+			std::cout << "Unknown line header" << std::endl;
+		}
 	}
 	return true;
-	
-	/*
-	std::ifstream f(inFilename);
-	if (!f.is_open()) return false;
 
-	// Local cache of verts
-	std::vector<vec4> verts;
-
-	while (!f.eof())
-	{
-		char line[128];
-		f.getline(line, 128);
-
-		std::strstream s;
-		s << line;
-
-		char junk;
-
-		if (line[0] == 'v')
-		{
-			vec4 v;
-			s >> junk >> v.x >> v.y >> v.z;
-			verts.push_back(v);
-		}
-
-		if (line[0] == 'f')
-		{
-			int f[3];
-			s >> junk >> f[0] >> f[1] >> f[2];
-			this->tris.push_back({ verts[f[0] - 1], verts[f[1] - 1], verts[f[2] - 1] });
-		}
-	}
-	return true;*/
 }
