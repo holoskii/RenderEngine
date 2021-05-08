@@ -21,7 +21,10 @@ RenderEngine::RenderEngine() {
 
 void RenderEngine::run() {
 	// load object file
-	if (!objectMesh.loadObjectFile("teapot.obj")) {
+	// if (!objectMesh.loadObjectFile("teapot.obj")) {
+	// if (!objectMesh.loadObjectFile("sphere.obj")) {
+	if (!objectMesh.loadObjectFile("pegasus.obj")) {
+	// if (!objectMesh.loadObjectFile("cube.obj")) {
 		std::cout << "Error openning file " << std::endl;
 		exit(1);
 	}
@@ -96,11 +99,10 @@ void RenderEngine::run() {
 	}
 }
 
-void RenderEngine::render(float fElapsedTime)
-{
+void RenderEngine::render(float fElapsedTime) {
 	// create world tranform matrix
-	fTheta += 2.5e-4f * fElapsedTime;
-	mat4x4 matRotY = mat4x4::makeRotationY(fTheta);					// world rotation, better for objectMesh exhibition	
+	// fTheta += 2.5e-4f * fElapsedTime;
+	mat4x4 matRotY = mat4x4::makeRotationY(fTheta);					// world rotation, better for object exhibition	
 	mat4x4 matTrans = mat4x4::makeTranslation(0.0f, 0.0f, 5.0f);	// world translation (so camera won't stuck in smaller objects)
 	mat4x4 matWorld = matRotY * matTrans; 
 
@@ -120,8 +122,7 @@ void RenderEngine::render(float fElapsedTime)
 	vecPolysToRaster.reserve(objectMesh.polys.size());
 
 	// tranform polygons
-	for (auto poly : objectMesh.polys)
-	{
+	for (polygon& poly : objectMesh.polys) {
 		polygon polyProjected, polyTransformed, polyViewed;
 
 		// world transform
@@ -138,66 +139,65 @@ void RenderEngine::render(float fElapsedTime)
 		// get camera rey to calculate illumination
 		vec4 vCameraRay = polyTransformed.p[0] - vCamera;
 
-		// if correct polygon size is visible
-		if (vNormal.dot(vCameraRay) < 0.0f)
-		{
-			// illuminate
-			vec4 light_direction = vec4(0.0f, 1.0f, -1.0f).normalize();
+		// if correct polygon side is visible
+		// if (vNormal.dot(vCameraRay) < 0.0f) {}
+		// illuminate
+		vec4 light_direction = vec4(0.0f, 1.0f, -1.0f).normalize();
 
-			// calculate illumination by angle between normal and light direction
-			// color is shade of gray, so keep in from 0 to 255
-			unsigned char colorInt = std::max(0.1f, light_direction.dot(vNormal)) * 255.0f;
-			polyTransformed.color = (colorInt << 24) + (colorInt << 16) + (colorInt << 8);
+		// calculate illumination by angle between normal and light direction
+		// color is shade of gray, so keep in from 0 to 255
+		unsigned char colorInt;
+		colorInt = std::max(0.05f, light_direction.dot(vNormal)) * 255.0f; 
+		polyTransformed.color = (colorInt << 24) + (colorInt << 16) + (colorInt << 8);
 
-			// tranform from world into view
-			polyViewed.p[0] = matView * polyTransformed.p[0];
-			polyViewed.p[1] = matView * polyTransformed.p[1];
-			polyViewed.p[2] = matView * polyTransformed.p[2];
-			polyViewed.color = polyTransformed.color;
+		// tranform from world into view
+		polyViewed.p[0] = matView * polyTransformed.p[0];
+		polyViewed.p[1] = matView * polyTransformed.p[1];
+		polyViewed.p[2] = matView * polyTransformed.p[2];
+		polyViewed.color = polyTransformed.color;
 
-			// polygon clipping agains camera plane
-			int nClippedPolygons = 0;
-			polygon clipped[2];
-			nClippedPolygons = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, polyViewed, clipped[0], clipped[1]);
+		// polygon clipping agains camera plane
+		int nClippedPolygons = 0;
+		polygon clipped[2];
+		nClippedPolygons = polygon::clipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, polyViewed, clipped[0], clipped[1]);
 
-			// project results of clipping
-			for (int n = 0; n < nClippedPolygons; n++)
-			{
-				// from view to screen (3D -> 2D)
-				polyProjected.p[0] = matProj * clipped[n].p[0];
-				polyProjected.p[1] = matProj * clipped[n].p[1];
-				polyProjected.p[2] = matProj * clipped[n].p[2];
-				polyProjected.color = clipped[n].color;
+		// project results of clipping
+		for (int n = 0; n < nClippedPolygons; n++) {
+			// from view to screen (3D -> 2D)
+			polyProjected.p[0] = matProj * clipped[n].p[0];
+			polyProjected.p[1] = matProj * clipped[n].p[1];
+			polyProjected.p[2] = matProj * clipped[n].p[2];
+			polyProjected.color = clipped[n].color;
 
-				// scaled them into view
-				polyProjected.p[0] = polyProjected.p[0] / polyProjected.p[0].w;
-				polyProjected.p[1] = polyProjected.p[1] / polyProjected.p[1].w;
-				polyProjected.p[2] = polyProjected.p[2] / polyProjected.p[2].w;
+			// scaled them into view
+			polyProjected.p[0] = polyProjected.p[0] / polyProjected.p[0].w;
+			polyProjected.p[1] = polyProjected.p[1] / polyProjected.p[1].w;
+			polyProjected.p[2] = polyProjected.p[2] / polyProjected.p[2].w;
 
-				// invert x and y back
-				polyProjected.p[0].x *= -1.0f;
-				polyProjected.p[1].x *= -1.0f;
-				polyProjected.p[2].x *= -1.0f;
-				polyProjected.p[0].y *= -1.0f;
-				polyProjected.p[1].y *= -1.0f;
-				polyProjected.p[2].y *= -1.0f;
+			// invert x and y back
+			polyProjected.p[0].x *= -1.0f;
+			polyProjected.p[1].x *= -1.0f;
+			polyProjected.p[2].x *= -1.0f;
+			polyProjected.p[0].y *= -1.0f;
+			polyProjected.p[1].y *= -1.0f;
+			polyProjected.p[2].y *= -1.0f;
 
-				// offset polygon into visible space
-				vec4 vOffsetView = { 1, 1, 0 };
-				polyProjected.p[0] = polyProjected.p[0] + vOffsetView;
-				polyProjected.p[1] = polyProjected.p[1] + vOffsetView;
-				polyProjected.p[2] = polyProjected.p[2] + vOffsetView;
-				polyProjected.p[0].x *= 0.5f * windowWidth;
-				polyProjected.p[0].y *= 0.5f * windowHeight;
-				polyProjected.p[1].x *= 0.5f * windowWidth;
-				polyProjected.p[1].y *= 0.5f * windowHeight;
-				polyProjected.p[2].x *= 0.5f * windowWidth;
-				polyProjected.p[2].y *= 0.5f * windowHeight;
+			// offset polygon into visible space
+			vec4 vOffsetView = { 1, 1, 0 };
+			polyProjected.p[0] = polyProjected.p[0] + vOffsetView;
+			polyProjected.p[1] = polyProjected.p[1] + vOffsetView;
+			polyProjected.p[2] = polyProjected.p[2] + vOffsetView;
+			polyProjected.p[0].x *= 0.5f * windowWidth;
+			polyProjected.p[0].y *= 0.5f * windowHeight;
+			polyProjected.p[1].x *= 0.5f * windowWidth;
+			polyProjected.p[1].y *= 0.5f * windowHeight;
+			polyProjected.p[2].x *= 0.5f * windowWidth;
+			polyProjected.p[2].y *= 0.5f * windowHeight;
 
-				// push polygons in vector for further sorting
-				vecPolysToRaster.push_back(polyProjected);
-			}
+			// push polygons in vector for further sorting
+			vecPolysToRaster.push_back(polyProjected);
 		}
+		// }
 	}
 
 	// sort back to front
@@ -206,12 +206,10 @@ void RenderEngine::render(float fElapsedTime)
 			float z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0f;
 			float z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0f;
 			return z1 > z2;
-		}
-	);
+		} );
 
 	// polygon clipping against screen borders
-	for (auto& polyToRaster : vecPolysToRaster)
-	{
+	for (auto& polyToRaster : vecPolysToRaster) {
 		// clipping agains screen edges may result in a lot of new polygons
 		// so we'll create list to store them
 		polygon clipped[2];
@@ -221,11 +219,9 @@ void RenderEngine::render(float fElapsedTime)
 		listPolygons.push_back(polyToRaster);
 		int nNewPolys = 1;
 
-		for (int p = 0; p < 4; p++)
-		{
+		for (int p = 0; p < 4; p++) {
 			int nPolysToAdd = 0;
-			while (nNewPolys > 0)
-			{
+			while (nNewPolys > 0) {
 				// take poly from list
 				polygon test = listPolygons.front();
 				listPolygons.pop_front();
@@ -252,7 +248,7 @@ void RenderEngine::render(float fElapsedTime)
 		// final draw of polygon
 		for (auto& t : listPolygons) {
 			drawColorTriange(t);
-			drawBlankTriange(t);
+			// drawBlankTriange(t);
 		}
 	}
 }

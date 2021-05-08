@@ -21,10 +21,12 @@ public:
 	mat4x4 quickInverse();
 
 	// matrix multiplication by vector
-	vec4 operator* (vec4& i);
+	vec4 operator* (const vec4& i) const;
 	
 	// matrix multiplication by matrix
-	mat4x4 operator* (mat4x4& m);
+	mat4x4 operator* (const mat4x4& m) const;
+
+	// mat4x4 operator* (mat4x4& m);
 
 	// creation of rotational matrix around X axis
 	static mat4x4 makeRotationX(float angleRad);

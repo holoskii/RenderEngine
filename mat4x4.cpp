@@ -111,7 +111,7 @@ mat4x4 mat4x4::quickInverse()
 	return matrix;
 }
 
-vec4 mat4x4::operator* (vec4& i) {
+vec4 mat4x4::operator* (const vec4& i) const  {
 	vec4 v;
 	v.x = i.x * this->m[0][0] + i.y * this->m[1][0] + i.z * this->m[2][0] + i.w * this->m[3][0];
 	v.y = i.x * this->m[0][1] + i.y * this->m[1][1] + i.z * this->m[2][1] + i.w * this->m[3][1];
@@ -120,7 +120,7 @@ vec4 mat4x4::operator* (vec4& i) {
 	return v;
 }
 
-mat4x4 mat4x4::operator* (mat4x4& m) {
+mat4x4 mat4x4::operator* (const mat4x4& m) const {
 	mat4x4 matrix;
 	for (int c = 0; c < 4; c++)
 		for (int r = 0; r < 4; r++)

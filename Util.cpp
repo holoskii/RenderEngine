@@ -158,7 +158,7 @@ bool mesh::loadObjectFile(std::string inFilename) {
 			}
 		}
 		else {
-			std::cout << "Unknown line header" << std::endl;
+			// std::cout << "Unknown line header " << lineHeader << std::endl;
 		}
 	}
 	return true;
