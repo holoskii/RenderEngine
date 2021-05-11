@@ -34,8 +34,8 @@ public:
 	// create window with default size
 	RenderEngine();
 
-	// start render
-	void run();
+	// start render of given file
+	void run(const std::string& filename, const bool toRotate = false);
 
 	// render window content
 	void render(float fElapsedTime);

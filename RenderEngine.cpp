@@ -19,12 +19,9 @@ RenderEngine::RenderEngine() {
 	window.create(sf::VideoMode(windowWidth, windowHeight), "SFML shapes", sf::Style::Default, settings);
 }
 
-void RenderEngine::run() {
+void RenderEngine::run(const std::string& filename, const bool toRotate) {
 	// load object file
-	// if (!objectMesh.loadObjectFile("teapot.obj")) {
-	// if (!objectMesh.loadObjectFile("sphere.obj")) {
-	if (!objectMesh.loadObjectFile("pegasus.obj")) {
-	// if (!objectMesh.loadObjectFile("cube.obj")) {
+	if (!objectMesh.loadObjectFile(filename)) {
 		std::cout << "Error openning file " << std::endl;
 		exit(1);
 	}
@@ -75,6 +72,11 @@ void RenderEngine::run() {
 			fYaw += rotationMult;
 		}
 
+		// rotate object
+		if (toRotate) {
+			fTheta += 2.5e-4f * frameTime;
+		}
+
 		// clear -> render -> display routine
 		window.clear();
 		render(frameTime);
@@ -101,7 +103,6 @@ void RenderEngine::run() {
 
 void RenderEngine::render(float fElapsedTime) {
 	// create world tranform matrix
-	// fTheta += 2.5e-4f * fElapsedTime;
 	mat4x4 matRotY = mat4x4::makeRotationY(fTheta);					// world rotation, better for object exhibition	
 	mat4x4 matTrans = mat4x4::makeTranslation(0.0f, 0.0f, 5.0f);	// world translation (so camera won't stuck in smaller objects)
 	mat4x4 matWorld = matRotY * matTrans; 
